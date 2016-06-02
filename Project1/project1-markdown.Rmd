@@ -1,0 +1,178 @@
+---
+title: "Project 1"
+output: html_document
+---
+
+##Part One - R Coding
+
+I first make plot the acf and pacf of the time series x.
+```{r, eval=FALSE}
+acf(x)
+pacf(x)
+```
+
+I then create a variable that takes the maximum order of the models I will estimate. Then, I create a matrix to store the AIC values of all 121 models that I will fit.
+
+```{r, eval=FALSE}
+max.order <- 10
+AIC.matrix <- matrix(0,nrow = max.order+1,ncol= max.order+1)
+```
+
+I then create nested for loops to store the AIC of the fitted models. By using the arima function and the nested for loops, I am able to fit the AR models by entering only the first parameter in the arima function and setting the second and third parameters to 0. In the same way, I fit and extract the AIC of the MA models by looping through the third parameter in the arima function and setting the first two parameters to 0. Finally, to fit the ARMA models, I loop through both the first and third parameters simultaneously, all the while leaving the middle parameter set to 0.
+
+
+```{r,eval=FALSE}
+for(i in 1:(max.order+1)){
+  for(j in 1:(max.order+1)){
+    currentArima <- arima(x,order=c(i-1,0,j-1))
+    AIC.matrix[i,j] <- AIC(currentArima) 
+  }
+}
+```
+
+I then loop through each fitted model and save the AIC of the model with the best fit. I essentially loop through every value in the AIC matrix, and save the lowest AIC into the similarly named vector. I then continue to compare the current AIC value in the loop to this saved AIC value. If the current AIC value is lower than the previous lowest AIC value, I save it in the LOWEST_AIC vector and extract the coefficients of this model and save the estimated fit in the best.model vector.
+
+```{r,eval=FALSE}
+BEST_I <- 0
+LOWEST_AIC <- 10^10
+for(i in 1:(max.order+1)){
+  for(j in 1:(max.order+1)){
+    if(AIC.matrix[i,j] < LOWEST_AIC){
+      LOWEST_AIC <- AIC.matrix[i,j]
+      best.model <- arima(x,order=c(i,0,j))
+    }
+  }
+}
+```
+
+Finally, after locating this model of best fit, I print the acf and pacf.
+
+```{r,eval=FALSE}
+acf(best.model)
+pacf(best.model)
+```
+
+##Part Two - Applications
+
+Instead of copying and pasting the tv.R code each time for all three TV series, I instead choose to call the source code from the tv.R script by using the source function. Note that I replaced my actual filepath to the tv.R script (which I saved locally on my desktop) to the generic 'filepath' for privacy reasons. I also have downloaded already the packages necessary to call the API.
+
+```{r,eval=FALSE}
+source("filepath/tv.R")
+```
+
+#TV Series 1 - The Sopranos
+
+Here, I use the tv.R function getTV to retrieve the imbd information for The Sopranos and save it in the dataframe 'sopranos'. I then save these imbd ratings in the vector x, and coerce the vector to a time series object.
+
+```{r,eval=FALSE}
+OUR_TITLE <- "The Sopranos"
+sopranos <-getTv(OUR_TITLE,OUR_YEAR = 1999)
+```
+
+I then use the code for part one to fit all 121 models and find the best model fit with the lowest AIC.
+
+```{r}
+max.order <- 10
+AIC.matrix <- matrix(0,nrow = max.order+1,ncol= max.order+1)
+for(i in 1:(max.order+1)){
+  for(j in 1:(max.order+1)){
+    currentArima <- arima(x,order=c(i-1,0,j-1))
+    AIC.matrix[i,j] <- AIC(currentArima) 
+  }
+}
+BEST_I <- 0
+LOWEST_AIC <- 10^10
+for(i in 1:(max.order+1)){
+  for(j in 1:(max.order+1)){
+    if(AIC.matrix[i,j] < LOWEST_AIC){
+      LOWEST_AIC <- AIC.matrix[i,j]
+      best.model <- arima(x,order=c(i,0,j))
+    }
+  }
+}
+```
+
+I first plot the time series.
+
+```{r}
+ts.plot(x)
+```
+
+I then retrieve the acf of the series.
+
+```{r}
+acf(x,lag=60)
+```
+
+Now I retrieve the pacf of the series.
+
+```{r}
+pacf(x)
+```
+
+Instead, of printing the matrix and finding the lowest AIC behind, I instead choose to use the level plot function to assess which model parameters correspond to the lowest AIC (and subsequently the best model fit).
+
+```{r}
+levelplot(AIC.matrix)
+```
+
+###Part Three - Extensions
+
+I choose the series for "24" because it exhibits a clear downward trend over time as well as a significant seasonal pattern. I first fit a least squares model to this series. I regress the episode rating on the season, which I include as a factor. I also subtract -1 when using the lm function to rid of the unnecessary coefficient.
+
+```{r}
+lm1 <- lm(x~factor(season)-1,data=twentyfour)
+```
+
+I then print the fitted model coefficients.One can see from the regression output below that that every coefficient fitted to each season is statistically significant at the lowest alpha level. The output confirms my supposition when looking at the time series plot in Part 2 of the assignment. It is evident that there does exist a statistically significant seasonality effect in the series ratings.
+
+```{r}
+summary(lm1)
+```
+
+I then print the fitted model coefficients.One can see from the regression output below that that every coefficient fitted to each season is statistically significant at the lowest alpha level. The output confirms my supposition when looking at the time series plot in Part 2 of the assignment. It is evident that there does exist a statistically significant seasonality effect in the series ratings.
+
+```{r}
+summary(lm1)
+```
+
+
+I now extract just the residuals from the lm object I created by regressing the episode rating on the season. I then coerce it into a time series object and plot the residuals. As before, it is obvious that there is a very large degree of variance between ratings, and that the variance of these ratings, as evidenced by the noisy residual plot, is not constant but at times even multiplicative.
+
+```{r}
+x <- as.ts(lm1$residuals)
+ts.plot(x)
+```
+
+
+I next plot the acf of the fitted model residuals. It is evident that there exists a sinusoidal pattern in the plotted residuals, and that the seasonality effect is most strong in the beginning of the series and tapers off in significance during the latter episodes. However, the statistically significant acf values at multiple locations in the plot indicate that there does exist a seasonality effect.
+
+
+```{r}
+acf(x,lag=60)
+```
+
+I next plot the pacf of the fitted model residuals. The pacf indicates that there are multiple meaningful significant pacf value, including at lags 2,7 and 18. The last of these statistically significant lags indicates that all higher-order correlations are effectively explained by the lag 18 autocorrelation. 
+
+
+```{r}
+pacf(x)
+
+```
+
+I then run the R-code I created in part one to retrieve the best fitted model, including the model parameters, as well as the best AIC of the models created using the lm model residuals. For this residual series, it appears as though the ARMA(4,0,2) model fits the ratings residual data the best. The AR 4 parameter indicates that the previous 4 episodes and the white noise term contribute to the rating of a particular episode. This is notable because it the AR fit for the residuals is similar to that of the fit for the original model. Further, the MA parameter of 2 signifies that the rating of an episode is also a function of the current white noise term as well as the previous 2 white noise terms. Another good fit to this particular model is the ARMA(4,0,6) model, as well as the ARMA(4,0,7) model. 
+
+```{r}
+levelplot(AIC.matrix)
+```
+
+Finally, I fit a generalized least squares model, and use the best model I retrieved from the previous step. In general, the gls results yield a less precise but more accurate value estimate for each season. For each seasonal value estimate, the standard error is larger than the corresponding value estimate for lm model. This is because gls accounts for the autocorrelation in the residual series. Also, due to weighting, the gls estimates will be slightly different than the lm estimates. In essence, the estimates for each season give a good estimate for a rating of an episode in that season.
+
+```{r}
+gls1 <- gls(x~factor(season)-1,data=twentyfour,correlation = corARMA(value = coef(best.model)[1:6],p=4,q=2))
+summary(gls1)
+```
+
+
+
+
